@@ -1,0 +1,64 @@
+name: RDP + MuMu Player
+
+on:
+  workflow_dispatch:
+
+jobs:
+  rdp:
+    runs-on: windows-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Enable RDP
+        run: |
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0
+        shell: powershell
+
+      - name: Create RDP User
+        run: |
+          $password = ConvertTo-SecureString "baim123" -AsPlainText -Force
+          New-LocalUser "rdpuser" -Password $password -FullName "rdpuser" -ErrorAction SilentlyContinue
+          Add-LocalGroupMember -Group "Administrators" -Member "rdpuser" -ErrorAction SilentlyContinue
+          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "rdpuser" -ErrorAction SilentlyContinue
+        shell: powershell
+
+      - name: Install Tailscale
+        run: |
+          Invoke-WebRequest -Uri "https://pkgs.tailscale.com/stable/tailscale-setup-latest.exe" -OutFile tailscale-setup.exe
+          Start-Process -FilePath tailscale-setup.exe -ArgumentList "/S" -Wait
+          Start-Sleep -Seconds 5
+          & "C:\Program Files\Tailscale\tailscale.exe" up --authkey=$env:TS_AUTHKEY --hostname=github-rdp
+        shell: powershell
+        env:
+          TS_AUTHKEY: ${{ secrets.TS_AUTHKEY }}
+
+      - name: Download MuMu Player
+        run: |
+          Copy-Item "$env:GITHUB_WORKSPACE\MuMuInstaller.exe" "MuMuInstaller.exe"
+        shell: powershell
+
+      - name: Install MuMu Player
+        run: |
+          Start-Process -FilePath MuMuInstaller.exe -ArgumentList "/S" -Wait
+          Start-Sleep -Seconds 15
+        shell: powershell
+
+      - name: Launch MuMu Player
+        run: |
+          Start-Process "C:\Program Files\Netease\MuMuPlayer-12.0\MuMuPlayer.exe"
+          Start-Sleep -Seconds 20
+        shell: powershell
+
+      - name: Install Python & OpenCV
+        run: |
+          pip install opencv-python pyautogui pillow numpy
+        shell: powershell
+
+      - name: Keep Alive
+        run: Start-Sleep -Seconds 18000
+        shell: powershell
