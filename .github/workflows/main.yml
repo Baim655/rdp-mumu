@@ -73,13 +73,13 @@ jobs:
                   z = zipfile.ZipFile(io.BytesIO(r.content))
                   z.extractall(restore)
                   files = z.namelist()
-                  print(f'✅ Restore {len(files)} file ke {restore}')
+                  print(f' Restore {len(files)} file ke {restore}')
                   for f in files:
-                      print(f'   📄 {f}')
+                      print(f' {f}')
               else:
-                  print('⚠️ Belum ada backup file di VPS, mulai fresh')
+                  print(' Belum ada backup file di VPS, mulai fresh')
           except Exception as e:
-              print(f'❌ Gagal restore: {e}')
+              print(f'Gagal restore: {e}')
           "
 
       - name: Show Connection Info
@@ -111,7 +111,7 @@ jobs:
           def backup_semua():
               files = glob.glob(f'{project}/**/*.py', recursive=True)
               if not files:
-                  print('⚠️ Tidak ada file .py ditemukan')
+                  print('Tidak ada file .py ditemukan')
                   return
               berhasil = 0
               for filepath in files:
@@ -127,10 +127,10 @@ jobs:
                       if r.status_code == 200:
                           berhasil += 1
                   except Exception as e:
-                      print(f'❌ Gagal upload {filepath}: {e}')
-              print(f'💾 Backup {berhasil}/{len(files)} file .py selesai')
+                      print(f' Gagal upload {filepath}: {e}')
+              print(f'Backup {berhasil}/{len(files)} file .py selesai')
 
-          print('🔄 Auto backup jalan, interval 5 menit...')
+          print('Auto backup jalan, interval 5 menit...')
           while True:
               backup_semua()
               time.sleep(300)  # 5 menit
