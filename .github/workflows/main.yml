@@ -5,15 +5,32 @@ on:
 
 jobs:
   remote-access:
-    runs-on: windows-latest
+    runs-on: self-hosted
     timeout-minutes: 360
 
     steps:
+      - name: Install Tailscale
+        shell: powershell
+        run: |
+          if (!(Test-Path "$env:ProgramFiles\Tailscale\tailscale.exe")) {
+            $url = "https://pkgs.tailscale.com/stable/tailscale-setup-latest-amd64.msi"
+            $file = "$env:TEMP\tailscale.msi"
+            Invoke-WebRequest $url -OutFile $file
+            Start-Process msiexec.exe -ArgumentList @("/i", $file, "/quiet", "/norestart") -Wait
+          }
+
+      - name: Connect Tailscale
+        shell: powershell
+        run: |
+          & "$env:ProgramFiles\Tailscale\tailscale.exe" up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }}
+          Start-Sleep -Seconds 10
+          $ip = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
+          echo "TS_IP=$ip" >> $env:GITHUB_ENV
+
       - name: Enable Remote Desktop
         shell: powershell
         run: |
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' `
-                           -Name "fDenyTSConnections" -Value 0 -Force
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0 -Force
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
           Restart-Service TermService -Force
 
@@ -24,120 +41,20 @@ jobs:
           if (-not (Get-LocalUser -Name "RDP2" -ErrorAction SilentlyContinue)) {
               New-LocalUser -Name "RDP2" -Password $password -AccountNeverExpires
           }
-          Add-LocalGroupMember -Group "Administrators" -Member "RDP2"
-          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "RDP2"
-          echo "USERNAME=RDP2" >> $env:GITHUB_ENV
-          echo "PASSWORD=Baim123" >> $env:GITHUB_ENV
-
-      - name: Install Tailscale
-        shell: powershell
-        run: |
-          $url = "https://pkgs.tailscale.com/stable/tailscale-setup-latest-amd64.msi"
-          $file = "$env:TEMP\tailscale.msi"
-          Invoke-WebRequest $url -OutFile $file
-          Start-Process msiexec.exe -ArgumentList @("/i", $file, "/quiet", "/norestart") -Wait
-
-      - name: Connect Tailscale
-        shell: powershell
-        run: |
-          & "$env:ProgramFiles\Tailscale\tailscale.exe" up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }}
-          Start-Sleep -Seconds 10
-          $ip = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
-          echo "TS_IP=$ip" >> $env:GITHUB_ENV
-
-      - name: Install Python Dependencies
-        shell: powershell
-        run: |
-          pip install requests
-
-      - name: Restore Semua File .py dari VPS
-        shell: powershell
-        env:
-          VPS_IP: ${{ secrets.VPS_IP }}
-          VPS_TOKEN: ${{ secrets.VPS_TOKEN }}
-        run: |
-          python -c "
-          import requests, os, zipfile, io
-
-          vps_ip    = os.environ['VPS_IP']
-          vps_token = os.environ['VPS_TOKEN']
-          base_url  = f'http://{vps_ip}:3000'
-          headers   = {'X-Token': vps_token}
-          restore   = 'C:/project'
-
-          os.makedirs(restore, exist_ok=True)
-
-          try:
-              r = requests.get(f'{base_url}/download-all', headers=headers, timeout=30)
-              if r.status_code == 200:
-                  z = zipfile.ZipFile(io.BytesIO(r.content))
-                  z.extractall(restore)
-                  files = z.namelist()
-                  print(f' Restore {len(files)} file ke {restore}')
-                  for f in files:
-                      print(f' {f}')
-              else:
-                  print(' Belum ada backup file di VPS, mulai fresh')
-          except Exception as e:
-              print(f'Gagal restore: {e}')
-          "
+          Add-LocalGroupMember -Group "Administrators" -Member "RDP2" -ErrorAction SilentlyContinue
+          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "RDP2" -ErrorAction SilentlyContinue
 
       - name: Show Connection Info
         shell: powershell
         run: |
-          Write-Host ""
           Write-Host "====== RDP CONNECTION DETAILS ======"
           Write-Host "IP Address : $env:TS_IP"
-          Write-Host "Username   : $env:USERNAME"
-          Write-Host "Password   : $env:PASSWORD"
-          Write-Host "Project    : C:\project"
+          Write-Host "Username   : RDP2"
+          Write-Host "Password   : Baim123"
           Write-Host "===================================="
-
-      - name: Auto Backup .py ke VPS Tiap 5 Menit
-        shell: powershell
-        env:
-          VPS_IP: ${{ secrets.VPS_IP }}
-          VPS_TOKEN: ${{ secrets.VPS_TOKEN }}
-        run: |
-          python -c "
-          import requests, os, time, glob
-
-          vps_ip    = os.environ['VPS_IP']
-          vps_token = os.environ['VPS_TOKEN']
-          base_url  = f'http://{vps_ip}:3000'
-          headers   = {'X-Token': vps_token}
-          project   = 'C:/project'
-
-          def backup_semua():
-              files = glob.glob(f'{project}/**/*.py', recursive=True)
-              if not files:
-                  print('Tidak ada file .py ditemukan')
-                  return
-              berhasil = 0
-              for filepath in files:
-                  try:
-                      filename = os.path.basename(filepath)
-                      with open(filepath, 'rb') as f:
-                          r = requests.post(
-                              f'{base_url}/upload',
-                              headers=headers,
-                              files={'file': (filename, f, 'text/plain')},
-                              timeout=30
-                          )
-                      if r.status_code == 200:
-                          berhasil += 1
-                  except Exception as e:
-                      print(f' Gagal upload {filepath}: {e}')
-              print(f'Backup {berhasil}/{len(files)} file .py selesai')
-
-          print('Auto backup jalan, interval 5 menit...')
-          while True:
-              backup_semua()
-              time.sleep(300)  # 5 menit
-          "
 
       - name: Keep Runner Alive
         shell: powershell
         run: |
-          Write-Host "Runner will stay active for 6 hours..."
+          Write-Host "Runner aktif, VPS langsung bisa diakses..."
           Start-Sleep -Seconds 21600
