@@ -73,7 +73,9 @@ jobs:
                   z = zipfile.ZipFile(io.BytesIO(r.content))
                   z.extractall(restore)
                   files = z.namelist()
-                  print(f'✅ Restore {len(files)} file ke {restore}')
+                  import sys
+                     sys.stdout.reconfigure(encoding='utf-8')
+                     print(f'Restore {len(files)} file ke {restore}')
                   for f in files:
                       print(f'   📄 {f}')
               else:
