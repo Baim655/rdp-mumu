@@ -12,7 +12,8 @@ jobs:
       - name: Enable Remote Desktop
         shell: powershell
         run: |
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0 -Force
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' `
+                           -Name "fDenyTSConnections" -Value 0 -Force
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
           Restart-Service TermService -Force
 
@@ -55,33 +56,31 @@ jobs:
           VPS_IP: ${{ secrets.VPS_IP }}
           VPS_TOKEN: ${{ secrets.VPS_TOKEN }}
         run: |
-          $code = @'
-import requests, os, zipfile, io, sys
-sys.stdout.reconfigure(encoding='utf-8')
+          python -c "
+          import requests, os, zipfile, io
 
-vps_ip = os.environ['VPS_IP']
-vps_token = os.environ['VPS_TOKEN']
-base_url = 'http://' + vps_ip + ':5000'
-headers = {'X-Token': vps_token}
-restore = 'C:/project'
+          vps_ip    = os.environ['VPS_IP']
+          vps_token = os.environ['VPS_TOKEN']
+          base_url  = f'http://{vps_ip}:5000'
+          headers   = {'X-Token': vps_token}
+          restore   = 'C:/project'
 
-os.makedirs(restore, exist_ok=True)
+          os.makedirs(restore, exist_ok=True)
 
-try:
-    r = requests.get(base_url + '/download-all', headers=headers, timeout=30)
-    if r.status_code == 200:
-        z = zipfile.ZipFile(io.BytesIO(r.content))
-        z.extractall(restore)
-        files = z.namelist()
-        print('Restore ' + str(len(files)) + ' file ke ' + restore)
-        for f in files:
-            print('  - ' + f)
-    else:
-        print('Belum ada backup, mulai fresh')
-except Exception as e:
-    print('Gagal restore: ' + str(e))
-'@
-          $code | python
+          try:
+              r = requests.get(f'{base_url}/download-all', headers=headers, timeout=30)
+              if r.status_code == 200:
+                  z = zipfile.ZipFile(io.BytesIO(r.content))
+                  z.extractall(restore)
+                  files = z.namelist()
+                  print(f'✅ Restore {len(files)} file ke {restore}')
+                  for f in files:
+                      print(f'   📄 {f}')
+              else:
+                  print('⚠️ Belum ada backup file di VPS, mulai fresh')
+          except Exception as e:
+              print(f'❌ Gagal restore: {e}')
+          "
 
       - name: Show Connection Info
         shell: powershell
@@ -100,44 +99,42 @@ except Exception as e:
           VPS_IP: ${{ secrets.VPS_IP }}
           VPS_TOKEN: ${{ secrets.VPS_TOKEN }}
         run: |
-          $code = @'
-import requests, os, time, glob, sys
-sys.stdout.reconfigure(encoding='utf-8')
+          python -c "
+          import requests, os, time, glob
 
-vps_ip = os.environ['VPS_IP']
-vps_token = os.environ['VPS_TOKEN']
-base_url = 'http://' + vps_ip + ':5000'
-headers = {'X-Token': vps_token}
-project = 'C:/project'
+          vps_ip    = os.environ['VPS_IP']
+          vps_token = os.environ['VPS_TOKEN']
+          base_url  = f'http://{vps_ip}:5000'
+          headers   = {'X-Token': vps_token}
+          project   = 'C:/project'
 
-def backup_semua():
-    files = glob.glob(project + '/**/*.py', recursive=True)
-    if not files:
-        print('Tidak ada file .py ditemukan')
-        return
-    berhasil = 0
-    for filepath in files:
-        try:
-            filename = os.path.basename(filepath)
-            with open(filepath, 'rb') as f:
-                r = requests.post(
-                    base_url + '/upload',
-                    headers=headers,
-                    files={'file': (filename, f, 'text/plain')},
-                    timeout=30
-                )
-            if r.status_code == 200:
-                berhasil += 1
-        except Exception as e:
-            print('Gagal upload ' + filepath + ': ' + str(e))
-    print('Backup ' + str(berhasil) + '/' + str(len(files)) + ' file selesai')
+          def backup_semua():
+              files = glob.glob(f'{project}/**/*.py', recursive=True)
+              if not files:
+                  print('⚠️ Tidak ada file .py ditemukan')
+                  return
+              berhasil = 0
+              for filepath in files:
+                  try:
+                      filename = os.path.basename(filepath)
+                      with open(filepath, 'rb') as f:
+                          r = requests.post(
+                              f'{base_url}/upload',
+                              headers=headers,
+                              files={'file': (filename, f, 'text/plain')},
+                              timeout=30
+                          )
+                      if r.status_code == 200:
+                          berhasil += 1
+                  except Exception as e:
+                      print(f'❌ Gagal upload {filepath}: {e}')
+              print(f'💾 Backup {berhasil}/{len(files)} file .py selesai')
 
-print('Auto backup jalan, interval 5 menit...')
-while True:
-    backup_semua()
-    time.sleep(300)
-'@
-          $code | python
+          print('🔄 Auto backup jalan, interval 5 menit...')
+          while True:
+              backup_semua()
+              time.sleep(300)  # 5 menit
+          "
 
       - name: Keep Runner Alive
         shell: powershell
