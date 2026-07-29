@@ -61,7 +61,7 @@ jobs:
 
           vps_ip    = os.environ['VPS_IP']
           vps_token = os.environ['VPS_TOKEN']
-          base_url  = f'http://{vps_ip}:5000'
+          base_url  = f'http://{vps_ip}:3000'
           headers   = {'X-Token': vps_token}
           restore   = 'C:/project'
 
@@ -104,7 +104,7 @@ jobs:
 
           vps_ip    = os.environ['VPS_IP']
           vps_token = os.environ['VPS_TOKEN']
-          base_url  = f'http://{vps_ip}:5000'
+          base_url  = f'http://{vps_ip}:3000'
           headers   = {'X-Token': vps_token}
           project   = 'C:/project'
 
