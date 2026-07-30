@@ -9,17 +9,12 @@ jobs:
     timeout-minutes: 360
 
     steps:
-      - name: Get Tailscale IP
-        shell: powershell
-        run: |
-          $ip = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
-          echo "TS_IP=$ip" >> $env:GITHUB_ENV
-
       - name: Show Connection Info
         shell: powershell
         run: |
           Write-Host "====== RDP CONNECTION DETAILS ======"
-          Write-Host "IP Address : $env:TS_IP"
+          Write-Host "IP Address : 38.253.224.14"
+          Write-Host "Port       : 14117"
           Write-Host "Username   : RDP2"
           Write-Host "Password   : Baim123"
           Write-Host "===================================="
