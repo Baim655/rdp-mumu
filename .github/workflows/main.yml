@@ -9,21 +9,9 @@ jobs:
     timeout-minutes: 360
 
     steps:
-      - name: Install Tailscale
+      - name: Get Tailscale IP
         shell: powershell
         run: |
-          if (!(Test-Path "$env:ProgramFiles\Tailscale\tailscale.exe")) {
-            $url = "https://pkgs.tailscale.com/stable/tailscale-setup-latest-amd64.msi"
-            $file = "$env:TEMP\tailscale.msi"
-            Invoke-WebRequest $url -OutFile $file
-            Start-Process msiexec.exe -ArgumentList @("/i", $file, "/quiet", "/norestart") -Wait
-          }
-
-      - name: Connect Tailscale
-        shell: powershell
-        run: |
-          & "$env:ProgramFiles\Tailscale\tailscale.exe" up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --force-reauth
-          Start-Sleep -Seconds 10
           $ip = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
           echo "TS_IP=$ip" >> $env:GITHUB_ENV
 
@@ -39,5 +27,5 @@ jobs:
       - name: Keep Runner Alive
         shell: powershell
         run: |
-          Write-Host "Runner aktif, VPS langsung bisa diakses..."
+          Write-Host "Runner aktif..."
           Start-Sleep -Seconds 21600
